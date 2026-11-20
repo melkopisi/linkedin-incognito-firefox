@@ -52,7 +52,7 @@ accepting the full setting object with rest.li headers. See
 npm run build
 ```
 
-Upload the zip from `web-artifacts/` at
+Upload the zip from `web-ext-artifacts/` at
 addons.mozilla.org → Developer Hub → Submit a New Add-on → "On this site".
 Copy the listing text from `AMO_LISTING.md` and the privacy policy from
 `PRIVACY.md`.

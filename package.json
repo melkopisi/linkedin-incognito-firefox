@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
-    "lint": "web-ext lint --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md",
-    "start": "web-ext run --firefox-profile=dev --keep-profile-changes --profile-create-if-missing --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md",
-    "build": "web-ext build --overwrite-dest --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md"
+    "lint": "web-ext lint --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-ext-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md",
+    "start": "web-ext run --firefox-profile=dev --keep-profile-changes --profile-create-if-missing --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-ext-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md",
+    "build": "web-ext build --overwrite-dest --ignore-files \"dev/**\" \"node_modules/**\" \"tests/**\" \"docs/**\" \"web-ext-artifacts/**\" package.json package-lock.json README.md PRIVACY.md AMO_LISTING.md"
   },
   "devDependencies": {
     "web-ext": "^8.10.0"
