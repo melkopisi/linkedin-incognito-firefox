@@ -63,3 +63,24 @@ test('requests made by the extension itself pass through untouched', async () =>
   assert.deepEqual(await blocker.handle(d), {});
   assert.equal(calls.blocked.length, 0);
 });
+
+test('onInspected sees view signals even while blocking is off, and nothing is cancelled', async () => {
+  const seen = [];
+  const blocker = createBlocker({ rules: rules(), isEnabled: () => false, onBlocked: () => {}, onSuspicious: () => {}, onInspected: (i) => seen.push(i) });
+  assert.deepEqual(await blocker.handle(details('batch-with-view.json')), {});
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].kind, 'view-signal');
+  assert.equal(seen[0].enabled, false);
+});
+
+test('without onInspected a disabled blocker does not decode bodies', async () => {
+  const blocker = createBlocker({ rules: rules(), isEnabled: () => false, onBlocked: () => {}, onSuspicious: () => {} });
+  const d = { method: 'POST', tabId: 1, url: 'x', requestBody: { get raw() { throw new Error('decoded'); } } };
+  assert.deepEqual(await blocker.handle(d), {});
+});
+
+test('a disabled blocker skips decoding when shouldInspect says no', async () => {
+  const blocker = createBlocker({ rules: rules(), isEnabled: () => false, onBlocked: () => {}, onSuspicious: () => {}, onInspected: () => { throw new Error('inspected'); }, shouldInspect: () => false });
+  const d = { method: 'POST', tabId: 1, url: 'x', requestBody: { get raw() { throw new Error('decoded'); } } };
+  assert.deepEqual(await blocker.handle(d), {});
+});

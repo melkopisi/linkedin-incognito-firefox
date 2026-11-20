@@ -79,7 +79,6 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
   }
 
   async function trip(t) {
-    console.info(`[QPB] trip reason=${t.reason} tab=${t.tabId} t=${now()}`);
     bEnabled = false;
     bConfirmed = false;
     guard.reset();
@@ -100,7 +99,7 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     try {
       await action.openPopup();
     } catch (err) {
-      console.warn('[QPB] could not open popup', err);
+      // window not focused; the on-page banner and badge still show
     }
     await snapshot();
   }
