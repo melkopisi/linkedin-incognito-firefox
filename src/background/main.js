@@ -1,29 +1,43 @@
-// Background entry point. Prototype wiring for switch B (Task 3);
-// replaced by the full controller later.
+// Background entry point: connects Firefox events to the controller.
+// Listeners are registered synchronously so Firefox can wake this event
+// page for them.
 import { createBlocker } from './blocker.js';
+import { createController } from './controller.js';
 
-// Listeners must be registered synchronously so Firefox can wake this
-// event page for them; the rules load in parallel.
+const controller = createController({
+  storage: browser.storage.local,
+  cookies: browser.cookies,
+  action: browser.action,
+  notifications: browser.notifications,
+  fetchFn: (url, init) => fetch(url, init),
+});
+const ready = controller.init();
+
 const blockerReady = fetch(browser.runtime.getURL('rules/view-signal.json'))
   .then((r) => r.json())
   .then((rules) => createBlocker({
     rules,
-    isEnabled: () => enabled,
-    onBlocked: (i) => {
-      console.info('[QPB] blocked view signal', i.url);
-      blockedCount += 1;
-      browser.action.setBadgeText({ text: String(blockedCount) });
-    },
-    onSuspicious: (i) => console.warn('[QPB] blocked suspicious report', i.url),
+    isEnabled: () => controller.isBEnabled(),
+    onBlocked: (info) => controller.onBlocked(info),
+    onSuspicious: (info) => controller.onSuspicious(info),
   }));
 
-let enabled = true;
-let blockedCount = 0;
-browser.storage.local.get({ bEnabled: true }).then((s) => { enabled = s.bEnabled; });
-browser.storage.onChanged.addListener((c) => { if (c.bEnabled) enabled = c.bEnabled.newValue; });
-
 browser.webRequest.onBeforeRequest.addListener(
-  async (details) => (await blockerReady).handle(details),
+  async (details) => {
+    await ready;
+    return (await blockerReady).handle(details);
+  },
   { urls: ['*://*.linkedin.com/*'], types: ['xmlhttprequest', 'ping', 'beacon', 'other'] },
   ['blocking', 'requestBody'],
 );
+
+const navFilter = { url: [{ hostEquals: 'www.linkedin.com', pathPrefix: '/in/' }] };
+const onNav = async (details) => {
+  if (details.frameId !== 0) return;
+  await ready;
+  controller.onNavigation(details);
+};
+browser.webNavigation.onCompleted.addListener(onNav, navFilter);
+browser.webNavigation.onHistoryStateUpdated.addListener(onNav, navFilter);
+
+browser.runtime.onMessage.addListener((msg) => ready.then(() => controller.handleMessage(msg)));
