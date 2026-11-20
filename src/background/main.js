@@ -53,8 +53,9 @@ browser.webRequest.onCompleted.addListener(
 
 // Signed in, out, or into another account: forget what was remembered.
 let sessionTimer = null;
-browser.cookies.onChanged.addListener(({ cookie }) => {
+browser.cookies.onChanged.addListener(({ cookie, removed, cause }) => {
   if (!/(^|\.)linkedin\.com$/.test(cookie.domain) || !['li_at', 'JSESSIONID'].includes(cookie.name)) return;
+  debugLog(`cookie ${cookie.name} removed=${removed} cause=${cause} t=${Date.now()}`);
   clearTimeout(sessionTimer);
   sessionTimer = setTimeout(() => ready.then(() => controller.onSessionChanged()), 1000);
 });

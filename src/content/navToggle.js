@@ -16,6 +16,9 @@
   };
 
   const send = (msg) => browser.runtime.sendMessage(msg);
+  let debug = false;
+  browser.storage.local.get({ debugMode: false }).then((s) => { debug = s.debugMode; });
+  const dlog = (m) => { if (debug) console.info(`[QPB-nav] ${m} t=${Date.now()}`); };
 
   function build() {
     const li = document.createElement('li');
@@ -26,34 +29,39 @@
     const root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent = `
-      button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 10px; font: 12px system-ui, sans-serif; color: inherit; opacity: .85; }
-      button:hover { opacity: 1; }
-      .pill { width: 28px; height: 16px; border-radius: 8px; background: #8c959f; position: relative; transition: background .15s; }
-      .pill::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left .15s; }
-      .on .pill::after { left: 14px; }
-      .protected .pill { background: #1a7f37; } .experimental .pill { background: #bf8700; }
-      .warning .pill { background: #cf222e; }
-      .busy { opacity: .5; pointer-events: none; }`;
+      button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; padding: 4px 10px;
+               border-radius: 999px; border: 1px solid; font: 500 13px/1.2 system-ui, sans-serif; white-space: nowrap; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+      .good { background: #eaf3de; color: #27500a; border-color: #3b6d11; }
+      .pending { background: #faeeda; color: #633806; border-color: #854f0b; }
+      .neutral { background: transparent; color: #5f5e5a; border-color: #b4b2a9; }
+      .bad { background: #fcebeb; color: #791f1f; border-color: #a32d2d; }
+      @media (prefers-color-scheme: dark) {
+        .good { background: #173404; color: #c0dd97; border-color: #639922; }
+        .pending { background: #412402; color: #fac775; border-color: #ba7517; }
+        .neutral { color: #d3d1c7; border-color: #888780; }
+        .bad { background: #501313; color: #f7c1c1; border-color: #e24b4a; }
+      }
+      .busy { opacity: .6; pointer-events: none; }`;
     const btn = document.createElement('button');
     btn.type = 'button';
-    const pill = document.createElement('span');
-    pill.className = 'pill';
+    btn.className = 'neutral';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
     const text = document.createElement('span');
-    text.textContent = 'Private';
-    btn.append(pill, text);
+    text.textContent = 'Checking…';
+    btn.append(dot, text);
     root.append(style, btn);
 
     let on = false;
     const render = (res) => {
-      if (!res) return;
+      if (!res || !res.nav) return;
+      dlog(`render a=${res.a.verifiedValue} level=${res.status.level} nav=${res.nav.text}`);
       on = res.a.verifiedValue === 'HIDE';
-      btn.classList.toggle('on', on);
-      // Colour follows actual protection (A or confirmed B), not just A.
-      btn.classList.remove('protected', 'experimental', 'warning');
-      if (['protected', 'experimental', 'warning'].includes(res.status.level)) btn.classList.add(res.status.level);
-      btn.title = res.status.label;
-      btn.setAttribute('aria-pressed', String(on));
-      btn.setAttribute('aria-label', `Private mode: ${res.status.label}`);
+      text.textContent = res.nav.text;
+      btn.className = res.nav.tone;
+      btn.title = res.nav.hint;
+      btn.setAttribute('aria-label', `${res.nav.text}. ${res.nav.hint}`);
     };
     const run = async (msg) => {
       btn.classList.add('busy');
@@ -66,6 +74,10 @@
         } else {
           render(res);
         }
+      } catch {
+        text.textContent = 'Not checked';
+        btn.className = 'neutral';
+        btn.title = "Couldn't reach the extension. Reload the page.";
       } finally {
         btn.classList.remove('busy');
       }
@@ -79,7 +91,7 @@
       const aChanged = changes.aCheck && (changes.aCheck.oldValue || {}).value !== (changes.aCheck.newValue || {}).value;
       const other = ['bEnabled', 'tripped', 'bConfirmedAt', 'fallbackFailed']
         .some((k) => changes[k] && JSON.stringify(changes[k].oldValue) !== JSON.stringify(changes[k].newValue));
-      if (aChanged || other) run({ type: 'getStatus' });
+      if (aChanged || other) { dlog(`storage change ${Object.keys(changes).join(',')}`); run({ type: 'getStatus' }); }
     });
     return li;
   }
@@ -133,6 +145,7 @@
     if (document.getElementById(ID)) return true;
     const ul = findNavList();
     if (!ul) return false;
+    dlog(toggle ? 'reinsert' : 'insert');
     toggle = toggle || build();
     ul.append(toggle);
     return true;

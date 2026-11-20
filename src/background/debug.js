@@ -3,7 +3,10 @@
 // Logs are cleaned of member IDs, profile names and tracking tokens.
 
 let enabled = false;
-browser.management.getSelf().then((self) => { enabled = self.installType === 'development'; }, () => {});
+browser.management.getSelf().then((self) => {
+  enabled = self.installType === 'development';
+  browser.storage.local.set({ debugMode: enabled }); // lets content scripts log too
+}, () => {});
 
 export const debugLog = (msg) => { if (enabled) console.info(`[QPB] ${msg}`); };
 export const debugEnabled = () => enabled;

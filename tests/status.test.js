@@ -38,3 +38,39 @@ test('DISCLOSE_FULL with B off is Public', () => {
 test('DISCLOSE_ANONYMOUS is not treated as private mode', () => {
   assert.equal(s({ a: { verifiedValue: 'DISCLOSE_ANONYMOUS', error: false } }).label, 'Public');
 });
+
+import { navLabel } from '../src/lib/status.js';
+const nl = (over) => {
+  const input = { ...base, ...over };
+  return navLabel(computeStatus(input), input.a, input.b);
+};
+
+test('nav label: Private mode on', () => {
+  assert.deepEqual(nl({ a: { verifiedValue: 'HIDE', error: false } }),
+    { text: 'Private', tone: 'good', hint: 'Private mode is on (LinkedIn setting). Click to turn it off.' });
+});
+
+test('nav label: B confirmed with Private mode off is Blocking views, not Private', () => {
+  assert.deepEqual(nl({ b: { enabled: true, confirmed: true } }),
+    { text: 'Blocking views', tone: 'good', hint: 'View signals are being blocked. Private mode is off. Click to turn Private mode on.' });
+});
+
+test('nav label: B unconfirmed is Checking…', () => {
+  assert.deepEqual(nl({ b: { enabled: true, confirmed: false } }),
+    { text: 'Checking…', tone: 'pending', hint: 'Blocking is on, not confirmed yet. Open a profile to confirm.' });
+});
+
+test('nav label: nothing protecting you is Visible', () => {
+  assert.deepEqual(nl({}),
+    { text: 'Visible', tone: 'neutral', hint: 'People see your name when you view them. Click to turn Private mode on.' });
+});
+
+test('nav label: unknown state never claims anything', () => {
+  assert.deepEqual(nl({ a: { verifiedValue: null, error: false } }),
+    { text: 'Not checked', tone: 'neutral', hint: "Couldn't check LinkedIn's setting. Are you signed in? Click to try turning Private mode on." });
+});
+
+test('nav label: failure is Visible!', () => {
+  assert.deepEqual(nl({ fallbackFailed: true, a: { verifiedValue: null, error: true } }),
+    { text: 'Visible!', tone: 'bad', hint: 'You are currently visible to profiles you view. Click to turn Private mode on.' });
+});
