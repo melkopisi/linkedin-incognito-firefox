@@ -16,7 +16,7 @@ const DEFAULTS = {
 const A_CHECK_TTL_MS = 10 * 60 * 1000;
 const TRIP_LOG_MAX = 50;
 
-export function createController({ storage, cookies, action, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 10000 }) {
+export function createController({ storage, cookies, action, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 30000 }) {
   const guard = createGuard({ windowMs });
   let bEnabled = false; // mirrored for the synchronous webRequest check
   let bConfirmed = false; // per browser session, never stored

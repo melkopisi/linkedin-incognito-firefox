@@ -234,3 +234,18 @@ test('a popup that cannot open does not stop the fallback', async () => {
   assert.equal(br.badge, '!');
   assert.equal(br.store.tripLog.length, 1);
 });
+
+test('the guard waits 30 seconds by default before calling a visit missed', async () => {
+  const li = fakeLinkedIn();
+  const br = fakeBrowser({ bEnabled: true });
+  let clock = 0;
+  const c = createController({ storage: br.storage.local, cookies: br.cookies, action: br.action, fetchFn: li.fetchFn, now: () => clock, schedule: () => {} });
+  await c.init();
+  await c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/someone/' });
+  clock = 29000;
+  await c.checkGuard();
+  assert.deepEqual(li.puts, []);
+  clock = 30001;
+  await c.checkGuard();
+  assert.deepEqual(li.puts, ['HIDE']);
+});
