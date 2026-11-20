@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
-    "lint": "npx --yes web-ext@8 lint",
-    "start": "npx --yes web-ext@8 run --firefox-profile=dev --keep-profile-changes --profile-create-if-missing",
-    "build": "npx --yes web-ext@8 build --overwrite-dest --ignore-files tests docs package.json package-lock.json dev"
+    "lint": "web-ext lint",
+    "start": "web-ext run --firefox-profile=dev --keep-profile-changes --profile-create-if-missing",
+    "build": "web-ext build --overwrite-dest --ignore-files tests docs package.json package-lock.json dev"
+  },
+  "devDependencies": {
+    "web-ext": "^8.10.0"
   }
 }

@@ -9,11 +9,16 @@ const blockerReady = fetch(browser.runtime.getURL('rules/view-signal.json'))
   .then((rules) => createBlocker({
     rules,
     isEnabled: () => enabled,
-    onBlocked: (i) => console.info('[QPB] blocked view signal', i.url),
+    onBlocked: (i) => {
+      console.info('[QPB] blocked view signal', i.url);
+      blockedCount += 1;
+      browser.action.setBadgeText({ text: String(blockedCount) });
+    },
     onSuspicious: (i) => console.warn('[QPB] blocked suspicious report', i.url),
   }));
 
 let enabled = true;
+let blockedCount = 0;
 browser.storage.local.get({ bEnabled: true }).then((s) => { enabled = s.bEnabled; });
 browser.storage.onChanged.addListener((c) => { if (c.bEnabled) enabled = c.bEnabled.newValue; });
 
