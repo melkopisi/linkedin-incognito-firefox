@@ -13,6 +13,11 @@ export function computeStatus({ a, b, tripped, fallbackFailed }) {
 
 // The label in LinkedIn's top bar: says what is protecting you right now,
 // in plain words. Clicking it toggles Private mode.
+// Quiet hint shown under the B switch until the first block is seen.
+export function bConfirmNote(b) {
+  return b.enabled && !b.confirmed ? 'Confirms on your next profile visit.' : null;
+}
+
 export function navLabel(status, a, b) {
   if (status.level === 'warning') {
     return { text: 'Visible!', tone: 'bad', hint: 'You are currently visible to profiles you view. Click to turn Private mode on.' };

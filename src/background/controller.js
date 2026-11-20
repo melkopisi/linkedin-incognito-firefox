@@ -2,7 +2,7 @@
 // passed in so this can be tested without Firefox.
 import { readSetting, writeSetting, getCsrfToken } from '../lib/settingA.js';
 import { isProfileVisit, createGuard } from '../lib/guard.js';
-import { computeStatus, navLabel } from '../lib/status.js';
+import { computeStatus, navLabel, bConfirmNote } from '../lib/status.js';
 
 const DEFAULTS = {
   bEnabled: false,
@@ -86,7 +86,7 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     if (status.badge) await action.setBadgeBackgroundColor({ color: '#d32f2f' });
     await action.setTitle({ title: status.label });
     const b = { enabled: s.bEnabled, confirmed: bConfirmed };
-    return { status, nav: navLabel(status, a, b), a, b, tripLog: s.tripLog, ...extra };
+    return { status, nav: navLabel(status, a, b), bNote: bConfirmNote(b), a, b, tripLog: s.tripLog, ...extra };
   }
 
   async function setA(on, confirmedHistoryWarning) {

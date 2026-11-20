@@ -325,3 +325,12 @@ test('turning B on while a trip is running is applied after the trip', async () 
   assert.equal(br.store.bEnabled, true);
   assert.equal(c.isBEnabled(), true);
 });
+
+test('status replies carry the B confirm hint until a block is seen', async () => {
+  const { c } = make();
+  let res = await c.handleMessage({ type: 'setB', on: true });
+  assert.match(res.bNote, /next profile visit/);
+  await c.onBlocked({ tabId: 1, time: 0 });
+  res = await c.handleMessage({ type: 'getStatus' });
+  assert.equal(res.bNote, null);
+});

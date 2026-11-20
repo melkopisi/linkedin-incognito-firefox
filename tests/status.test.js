@@ -74,3 +74,15 @@ test('nav label: failure is Visible!', () => {
   assert.deepEqual(nl({ fallbackFailed: true, a: { verifiedValue: null, error: true } }),
     { text: 'Visible!', tone: 'bad', hint: 'You are currently visible to profiles you view. Click to turn Private mode on.' });
 });
+
+import { bConfirmNote } from '../src/lib/status.js';
+
+test('B on but unconfirmed explains that a profile must be opened once', () => {
+  assert.equal(bConfirmNote({ enabled: true, confirmed: false }),
+    'Confirms on your next profile visit.');
+});
+
+test('no confirm note when B is off or already confirmed', () => {
+  assert.equal(bConfirmNote({ enabled: false, confirmed: false }), null);
+  assert.equal(bConfirmNote({ enabled: true, confirmed: true }), null);
+});

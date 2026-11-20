@@ -14,6 +14,8 @@ function render(res) {
   $('label').textContent = status.label;
   $('toggleA').checked = a.verifiedValue === 'HIDE';
   $('toggleB').checked = b.enabled;
+  $('bNote').textContent = res.bNote || '';
+  $('bNote').hidden = !res.bNote;
 
   const banner = $('banner');
   banner.hidden = true;

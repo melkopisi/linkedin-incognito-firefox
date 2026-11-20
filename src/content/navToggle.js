@@ -58,6 +58,7 @@
       .tag { font-size: 11px; color: #9a6700; border: 1px solid #9a6700; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
       .note { background: #fff8c5; border: 1px solid #d4a72c; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
       .note[hidden] { display: none; }
+      .hint { font-style: italic; margin-top: 2px; } .hint[hidden] { display: none; }
       .note p { margin: 0 0 6px; }
       .row { display: flex; gap: 6px; }
       .row button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid #d0d7de; background: #fff; color: inherit; cursor: pointer; }
@@ -84,6 +85,7 @@
     const statusLine = el('div', { className: 'status' });
     const boxA = el('input', { type: 'checkbox' });
     const boxB = el('input', { type: 'checkbox' });
+    const bHint = el('small', { className: 'hint', hidden: true });
     const histYes = el('button', { type: 'button', className: 'primary', textContent: 'Turn on Private mode' });
     const histNo = el('button', { type: 'button', textContent: 'Cancel' });
     const histNote = el('div', { className: 'note', hidden: true }, [
@@ -104,6 +106,7 @@
       el('label', { className: 'sw' }, [boxB, el('span', {}, [
         document.createTextNode('Block view signal'), el('span', { className: 'tag', textContent: 'Experimental' }),
         el('small', { textContent: 'May stop working when LinkedIn changes things.' }),
+        bHint,
       ])]),
     ]);
     menu.setAttribute('role', 'menu');
@@ -122,6 +125,8 @@
       statusLine.textContent = res.status.label;
       boxA.checked = res.a.verifiedValue === 'HIDE';
       boxB.checked = res.b.enabled;
+      bHint.textContent = res.bNote || '';
+      bHint.hidden = !res.bNote;
       if (res.needsHistoryWarning) askHistory = true;
       if (res.offerTurnOffA) askOffer = true;
       if (!res.b.enabled || !boxA.checked) askOffer = false;
