@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "viewMarkers": ["PROFILE_VIEW_EVENT_TRACKING", "\"clientBreadcrumbType\":\"PROFILE_VIEW\""],
+  "suspiciousMarkers": ["vieweeMemberUrn", "PROFILE_VIEW", "profile-view"]
+}
