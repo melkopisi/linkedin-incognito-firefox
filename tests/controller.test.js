@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createController } from '../src/background/controller.js';
-import { fixture } from './helpers.js';
+import { settingsPage } from './helpers.js';
 
 // Fake LinkedIn: holds the setting, answers PUT and the read-back page.
 function fakeLinkedIn({ value = 'DISCLOSE_FULL', putWorks = true, ownSlug = 'me-myself' } = {}) {
@@ -14,7 +14,7 @@ function fakeLinkedIn({ value = 'DISCLOSE_FULL', putWorks = true, ownSlug = 'me-
     }
     if (url.endsWith('/in/me/')) return { status: 200, ok: true, url: `https://www.linkedin.com/in/${ownSlug}/`, text: async () => '' };
     li.reads += 1;
-    const html = fixture('settings-page-full.html').replace('DISCLOSE_FULL', li.value);
+    const html = settingsPage(li.value);
     return { status: 200, ok: true, url, text: async () => html };
   };
   return li;

@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSettingFromHtml, readSetting, writeSetting, getCsrfToken } from '../src/lib/settingA.js';
-import { fixture } from './helpers.js';
+import { parseSettingFromHtml, extractSettingObject, readSetting, writeSetting, getCsrfToken } from '../src/lib/settingA.js';
+import { fixture, settingsPage } from './helpers.js';
 
-const page = (name, { status = 200, url = 'https://www.linkedin.com/mypreferences/d/profile-viewing-options' } = {}) =>
+const READ = 'https://www.linkedin.com/mypreferences/d/profile-viewing-options';
+const page = (name, { status = 200, url = READ } = {}) =>
   ({ status, ok: status === 200, url, text: async () => fixture(name) });
+const livePage = (value) => ({ status: 200, ok: true, url: READ, text: async () => settingsPage(value) });
 
 test('parseSettingFromHtml reads the embedded value', () => {
   assert.equal(parseSettingFromHtml(fixture('settings-page-hide.html')), 'HIDE');
@@ -22,25 +24,55 @@ test('readSetting returns null when fetch rejects or status is not 200', async (
   assert.equal(await readSetting({ fetchFn: async () => page('settings-page-hide.html', { status: 500 }) }), null);
 });
 
-test('writeSetting PUTs the value with the csrf token and verifies by reading back', async () => {
+test('extractSettingObject decodes the embedded setting', () => {
+  const o = extractSettingObject(settingsPage('HIDE'));
+  assert.equal(o.key, 'discloseAsProfileViewer');
+  assert.equal(o.value, 'HIDE');
+  assert.equal(o.entityUrn, 'urn:li:settingEntity:300101');
+  assert.equal(extractSettingObject(fixture('login-page.html')), null);
+});
+
+test('parseSettingFromHtml reads the live page format', () => {
+  assert.equal(parseSettingFromHtml(settingsPage('HIDE')), 'HIDE');
+  assert.equal(parseSettingFromHtml(settingsPage('DISCLOSE_FULL')), 'DISCLOSE_FULL');
+});
+
+test('writeSetting PUTs the full cleaned setting object with LinkedIn headers, then verifies', async () => {
   const calls = [];
+  let current = 'DISCLOSE_FULL';
   const fetchFn = async (url, init = {}) => {
     calls.push({ url, init });
-    return init.method === 'PUT' ? { status: 200, ok: true } : page('settings-page-hide.html');
+    if (init.method === 'PUT') { current = JSON.parse(init.body).value; return { status: 202, ok: true }; }
+    return livePage(current);
   };
   assert.deepEqual(await writeSetting('HIDE', { fetchFn, csrfToken: 'ajax:123' }), { ok: true, verifiedValue: 'HIDE' });
-  const put = calls[0];
+  const put = calls.find((c) => c.init.method === 'PUT');
   assert.equal(put.url, 'https://www.linkedin.com/mysettings-api/settingsApiSettings/discloseAsProfileViewer');
-  assert.equal(put.init.method, 'PUT');
   assert.equal(put.init.headers['csrf-token'], 'ajax:123');
-  assert.equal(put.init.headers['content-type'], 'application/json');
-  assert.deepEqual(JSON.parse(put.init.body), { value: 'HIDE' });
-  assert.equal(calls[1].url, 'https://www.linkedin.com/mypreferences/d/profile-viewing-options');
+  assert.equal(put.init.headers['x-restli-protocol-version'], '2.0.0');
+  assert.equal(put.init.headers.accept, 'application/vnd.linkedin.normalized+json+2.1');
+  assert.equal(put.init.headers['content-type'], 'application/json; charset=utf-8');
+  const body = JSON.parse(put.init.body);
+  assert.equal(body.value, 'HIDE');
+  assert.equal(body.key, 'discloseAsProfileViewer');
+  assert.equal(body.entityUrn, 'urn:li:settingEntity:300101');
+  assert.equal(body.settingDisplayType, 'RADIO');
+  assert.equal(body.hasChild, false);
+  assert.ok(!JSON.stringify(body).includes('$type'));
+  assert.ok(!JSON.stringify(body).includes('null'));
+  assert.equal(calls.at(-1).url, READ);
 });
 
 test('writeSetting is not ok when the read-back disagrees', async () => {
-  const fetchFn = async (url, init = {}) => (init.method === 'PUT' ? { status: 200, ok: true } : page('settings-page-full.html'));
+  const fetchFn = async (url, init = {}) => (init.method === 'PUT' ? { status: 422, ok: false } : livePage('DISCLOSE_FULL'));
   assert.deepEqual(await writeSetting('HIDE', { fetchFn, csrfToken: 't' }), { ok: false, verifiedValue: 'DISCLOSE_FULL' });
+});
+
+test('writeSetting does not PUT when the setting object cannot be found', async () => {
+  const methods = [];
+  const fetchFn = async (url, init = {}) => { methods.push(init.method || 'GET'); return page('login-page.html', { url: 'https://www.linkedin.com/login' }); };
+  assert.deepEqual(await writeSetting('HIDE', { fetchFn, csrfToken: 't' }), { ok: false, verifiedValue: null });
+  assert.ok(!methods.includes('PUT'));
 });
 
 test('writeSetting without a csrf token does not call fetch', async () => {
