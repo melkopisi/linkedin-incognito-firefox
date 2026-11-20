@@ -40,4 +40,9 @@ const onNav = async (details) => {
 browser.webNavigation.onCompleted.addListener(onNav, navFilter);
 browser.webNavigation.onHistoryStateUpdated.addListener(onNav, navFilter);
 
+browser.webNavigation.onCompleted.addListener(
+  () => ready.then(() => controller.onSettingsVisited()),
+  { url: [{ hostEquals: 'www.linkedin.com', pathPrefix: '/mypreferences/' }, { hostEquals: 'www.linkedin.com', pathPrefix: '/psettings/' }] },
+);
+
 browser.runtime.onMessage.addListener((msg) => ready.then(() => controller.handleMessage(msg)));

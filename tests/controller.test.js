@@ -60,12 +60,52 @@ const make = (opts = {}) => {
   return { c, li, br, tick: (ms) => { clock += ms; } };
 };
 
-test('getStatus re-reads LinkedIn every time', async () => {
-  const { c, li } = make();
+test('getStatus reuses a check from the last 10 minutes', async () => {
+  const { c, li, tick } = make();
+  await c.handleMessage({ type: 'getStatus' });
+  tick(9 * 60 * 1000);
+  await c.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, 1);
+});
+
+test('getStatus re-checks LinkedIn once the last check is over 10 minutes old', async () => {
+  const { c, li, tick } = make();
   await c.handleMessage({ type: 'getStatus' });
   li.value = 'HIDE'; // changed directly on LinkedIn
+  tick(10 * 60 * 1000 + 1);
   const res = await c.handleMessage({ type: 'getStatus' });
   assert.equal(li.reads, 2);
+  assert.equal(res.status.label, 'Private (verified)');
+});
+
+test('visiting LinkedIn settings forces a fresh check', async () => {
+  const { c, li } = make();
+  await c.handleMessage({ type: 'getStatus' });
+  li.value = 'HIDE';
+  await c.onSettingsVisited();
+  const res = await c.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, 2);
+  assert.equal(res.status.label, 'Private (verified)');
+});
+
+test('the check is shared across restarts through storage', async () => {
+  const { c, li, br } = make();
+  await c.handleMessage({ type: 'getStatus' });
+  const again = createController({
+    storage: br.storage.local, cookies: br.cookies, action: br.action, notifications: br.notificationsApi,
+    fetchFn: li.fetchFn, now: () => 0, schedule: () => {},
+  });
+  await again.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, 1);
+});
+
+test('a switch made through the extension updates the stored check', async () => {
+  const { c, li, br } = make();
+  await c.handleMessage({ type: 'setA', on: true, confirmedHistoryWarning: true });
+  assert.equal(br.store.aCheck.value, 'HIDE');
+  const reads = li.reads;
+  const res = await c.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, reads);
   assert.equal(res.status.label, 'Private (verified)');
 });
 

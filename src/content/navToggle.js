@@ -67,6 +67,10 @@
     };
     btn.addEventListener('click', () => run({ type: 'setA', on: !on }));
     run({ type: 'getStatus' });
+    // Follow changes made from the popup or by the guard.
+    browser.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && (changes.aCheck || changes.bEnabled || changes.tripped)) run({ type: 'getStatus' });
+    });
     return li;
   }
 

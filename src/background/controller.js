@@ -11,7 +11,9 @@ const DEFAULTS = {
   historyWarningShown: false,
   tripLog: [],
   ownSlug: null,
+  aCheck: null, // { value, checkedAt } — last value read back from LinkedIn
 };
+const A_CHECK_TTL_MS = 10 * 60 * 1000;
 const TRIP_LOG_MAX = 50;
 const TRIP_TITLE = 'LinkedIn view blocking stopped working';
 const TRIP_MESSAGE = 'The profile you just opened may have seen your visit. Private mode is now on (this may erase your viewer history).';
@@ -26,9 +28,17 @@ export function createController({ storage, cookies, action, notifications, fetc
 
   const state = () => storage.get(DEFAULTS);
 
-  async function refreshA() {
+  // Reads LinkedIn's setting, reusing a check from the last 10 minutes so
+  // opening the popup or a LinkedIn page doesn't download the settings page.
+  async function refreshA({ force = false } = {}) {
+    const s0 = await state();
+    if (!force && s0.aCheck && now() - s0.aCheck.checkedAt <= A_CHECK_TTL_MS) {
+      a = { verifiedValue: s0.aCheck.value, error: false };
+      return a;
+    }
     const value = await readSetting({ fetchFn });
     a = { verifiedValue: value, error: false };
+    await storage.set({ aCheck: value == null ? null : { value, checkedAt: now() } });
     if (value === 'HIDE') {
       const s = await state();
       if (s.fallbackFailed) await storage.set({ fallbackFailed: false });
@@ -54,7 +64,7 @@ export function createController({ storage, cookies, action, notifications, fetc
     const csrfToken = await getCsrfToken(cookies);
     const res = await writeSetting(on ? 'HIDE' : 'DISCLOSE_FULL', { fetchFn, csrfToken });
     a = { verifiedValue: res.verifiedValue, error: !res.ok };
-    const patch = {};
+    const patch = { aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() } };
     if (on) patch.historyWarningShown = true;
     if (res.ok && on) patch.fallbackFailed = false;
     if (!on && res.ok) patch.tripped = false;
@@ -82,7 +92,11 @@ export function createController({ storage, cookies, action, notifications, fetc
     const csrfToken = await getCsrfToken(cookies);
     const res = await writeSetting('HIDE', { fetchFn, csrfToken });
     a = { verifiedValue: res.verifiedValue, error: !res.ok };
-    await storage.set({ fallbackFailed: !res.ok, historyWarningShown: true });
+    await storage.set({
+      fallbackFailed: !res.ok,
+      historyWarningShown: true,
+      aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() },
+    });
     await notifications.create({
       type: 'basic',
       iconUrl: 'icons/icon.svg',
@@ -119,6 +133,11 @@ export function createController({ storage, cookies, action, notifications, fetc
         case 'setB': return setB(Boolean(msg.on));
         default: return undefined;
       }
+    },
+
+    // The user may change the setting by hand there; drop the remembered check.
+    async onSettingsVisited() {
+      await storage.set({ aCheck: null });
     },
 
     async onBlocked(info) {
