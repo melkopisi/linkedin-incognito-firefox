@@ -3,16 +3,22 @@
 // reliable control.
 (() => {
   const ID = 'qpb-nav-toggle';
-  const FIND_TIMEOUT_MS = 5000;
+  const FIND_TIMEOUT_MS = 20000;
 
+  // LinkedIn's main menu: the biggest *visible* list in the header. While
+  // the page loads, the header briefly holds small hidden lists; never
+  // settle in one of those.
+  const MIN_ITEMS = 3;
   const findNavList = () => {
-    const navs = [...document.querySelectorAll('header nav')];
     let best = null;
-    for (const nav of navs) {
+    for (const nav of document.querySelectorAll('header nav')) {
       const ul = nav.querySelector('ul');
-      if (ul && (!best || ul.children.length > best.children.length)) best = ul;
+      if (!ul || ul.getBoundingClientRect().width === 0) continue;
+      const items = [...ul.children].filter((c) => c.id !== ID).length;
+      if (items < MIN_ITEMS) continue;
+      if (!best || items > best.items) best = { ul, items };
     }
-    return best;
+    return best && best.ul;
   };
 
   const send = (msg) => browser.runtime.sendMessage(msg);
@@ -212,18 +218,27 @@
 
   let toggle = null;
   const insert = () => {
-    if (document.getElementById(ID)) return true;
     const ul = findNavList();
     if (!ul) return false;
+    if (toggle && toggle.parentElement === ul) return true; // already in the right place
     dlog(toggle ? 'reinsert' : 'insert');
     toggle = toggle || build();
     ul.append(toggle);
+    setTimeout(() => {
+      const r = toggle.getBoundingClientRect();
+      const cs = getComputedStyle(toggle);
+      dlog(`placed at ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} vw=${innerWidth} display=${cs.display} vis=${cs.visibility} inDoc=${document.contains(toggle)} ulItems=${ul.children.length}`);
+    }, 2000);
     return true;
   };
 
   // LinkedIn re-renders its header on in-page navigation; keep the toggle in place.
+  // Also moves the label if LinkedIn swaps in a new menu list.
+  let pending = false;
   const keepAlive = new MutationObserver(() => {
-    if (!document.getElementById(ID)) insert();
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; insert(); });
   });
 
   if (insert()) {
