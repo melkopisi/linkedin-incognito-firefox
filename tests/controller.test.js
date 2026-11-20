@@ -175,3 +175,15 @@ test('guard does nothing while B is off', async () => {
   await c.checkGuard();
   assert.deepEqual(li.puts, []);
 });
+
+test('init resolves without waiting for the own-profile lookup', async () => {
+  const br = fakeBrowser({ bEnabled: true });
+  const c = createController({
+    storage: br.storage.local, cookies: br.cookies, action: br.action, notifications: br.notificationsApi,
+    fetchFn: () => new Promise(() => {}), // LinkedIn never answers
+    schedule: () => {},
+  });
+  const result = await Promise.race([c.init().then(() => 'resolved'), new Promise((r) => setTimeout(() => r('hung'), 200))]);
+  assert.equal(result, 'resolved');
+  assert.equal(c.isBEnabled(), true);
+});

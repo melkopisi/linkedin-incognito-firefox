@@ -95,17 +95,20 @@ export function createController({ storage, cookies, action, notifications, fetc
   return {
     isBEnabled: () => bEnabled,
 
+    // Resolves once stored state is loaded. The own-profile lookup runs in
+    // the background: awaiting it here would deadlock, because that request
+    // passes through the webRequest listener, which waits for init.
     async init() {
       const s = await state();
       bEnabled = s.bEnabled;
       if (!s.ownSlug) {
-        try {
-          const res = await fetchFn('https://www.linkedin.com/in/me/', { credentials: 'include' });
-          const m = new URL(res.url).pathname.match(/^\/in\/([^/]+)/);
-          if (m && m[1] !== 'me') await storage.set({ ownSlug: decodeURIComponent(m[1]).toLowerCase() });
-        } catch {
-          // signed out; try again next start
-        }
+        fetchFn('https://www.linkedin.com/in/me/', { credentials: 'include' })
+          .then((res) => {
+            const m = new URL(res.url).pathname.match(/^\/in\/([^/]+)/);
+            if (m && m[1] !== 'me') return storage.set({ ownSlug: decodeURIComponent(m[1]).toLowerCase() });
+            return undefined;
+          })
+          .catch(() => {}); // signed out; try again next start
       }
     },
 

@@ -45,7 +45,16 @@ async function run(msg) {
   $('toggleA').disabled = true;
   $('toggleB').disabled = true;
   try {
-    render(await send(msg));
+    const res = await send(msg);
+    if (!res) throw new Error('No answer from the extension background');
+    render(res);
+  } catch (err) {
+    $('dot').className = 'dot unknown';
+    $('label').textContent = 'Error';
+    const banner = $('banner');
+    banner.textContent = `Couldn’t reach the extension: ${err && err.message ? err.message : err}`;
+    banner.className = 'banner bad';
+    banner.hidden = false;
   } finally {
     $('toggleA').disabled = false;
     $('toggleB').disabled = false;

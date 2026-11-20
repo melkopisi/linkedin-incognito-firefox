@@ -56,3 +56,10 @@ test('POST without a raw body passes', async () => {
   const { blocker } = setup();
   assert.deepEqual(await blocker.handle({ method: 'POST', tabId: 1, url: 'x', requestBody: { formData: { a: ['1'] } } }), {});
 });
+
+test('requests made by the extension itself pass through untouched', async () => {
+  const { blocker, calls } = setup();
+  const d = { ...details('batch-with-view.json'), tabId: -1 };
+  assert.deepEqual(await blocker.handle(d), {});
+  assert.equal(calls.blocked.length, 0);
+});

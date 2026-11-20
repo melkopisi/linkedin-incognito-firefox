@@ -21,7 +21,9 @@
     const li = document.createElement('li');
     li.id = ID;
     li.style.cssText = 'display:flex;align-items:center;list-style:none;';
-    const root = li.attachShadow({ mode: 'closed' });
+    const host = document.createElement('span');
+    li.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent = `
       button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 10px; font: 12px system-ui, sans-serif; color: inherit; opacity: .85; }

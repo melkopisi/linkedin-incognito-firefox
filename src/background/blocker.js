@@ -4,7 +4,8 @@ import { decodeBody, classifyBody, extractViewee } from '../lib/matcher.js';
 export function createBlocker({ rules, isEnabled, onBlocked, onSuspicious }) {
   return {
     async handle(details) {
-      if (!isEnabled() || details.method !== 'POST') return {};
+      // tabId -1: requests the extension makes itself (setting A, own-profile lookup).
+      if (!isEnabled() || details.method !== 'POST' || details.tabId === -1) return {};
       const raw = details.requestBody && details.requestBody.raw;
       if (!raw || raw.length === 0) return {};
       const chunks = raw.filter((r) => r.bytes).map((r) => new Uint8Array(r.bytes));
