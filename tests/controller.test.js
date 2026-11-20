@@ -50,7 +50,7 @@ const make = (opts = {}) => {
     storage: br.storage.local,
     cookies: br.cookies,
     action: br.action,
-    fetchFn: li.fetchFn,
+    fetchFn: (url, init) => li.fetchFn(url, init), // tests may swap li.fetchFn
     now: () => clock,
     schedule: () => {}, // tests drive checkGuard() directly
     windowMs: 10000,
@@ -71,16 +71,6 @@ test('getStatus re-checks LinkedIn once the last check is over 10 minutes old', 
   await c.handleMessage({ type: 'getStatus' });
   li.value = 'HIDE'; // changed directly on LinkedIn
   tick(10 * 60 * 1000 + 1);
-  const res = await c.handleMessage({ type: 'getStatus' });
-  assert.equal(li.reads, 2);
-  assert.equal(res.status.label, 'Private (verified)');
-});
-
-test('visiting LinkedIn settings forces a fresh check', async () => {
-  const { c, li } = make();
-  await c.handleMessage({ type: 'getStatus' });
-  li.value = 'HIDE';
-  await c.onSettingsVisited();
   const res = await c.handleMessage({ type: 'getStatus' });
   assert.equal(li.reads, 2);
   assert.equal(res.status.label, 'Private (verified)');
@@ -248,4 +238,90 @@ test('the guard waits 30 seconds by default before calling a visit missed', asyn
   clock = 30001;
   await c.checkGuard();
   assert.deepEqual(li.puts, ['HIDE']);
+});
+
+// --- review fixes ---
+
+test('getStatus with fresh:true always re-reads LinkedIn', async () => {
+  const { c, li } = make();
+  await c.handleMessage({ type: 'getStatus' });
+  li.value = 'HIDE';
+  const res = await c.handleMessage({ type: 'getStatus', fresh: true });
+  assert.equal(li.reads, 2);
+  assert.equal(res.status.label, 'Private (verified)');
+});
+
+test('LinkedIn saving the setting from its own page forces a re-read', async () => {
+  const { c, li } = make({ li: { value: 'HIDE' } });
+  await c.handleMessage({ type: 'getStatus' });
+  li.value = 'DISCLOSE_FULL'; // user switched to public on LinkedIn's page
+  await c.onSettingsSaved();
+  const res = await c.handleMessage({ type: 'getStatus' });
+  assert.equal(res.status.label, 'Public');
+});
+
+test('a session change forgets the remembered check and own profile', async () => {
+  const { c, br } = make({ store: { ownSlug: 'old-me' } });
+  await c.handleMessage({ type: 'getStatus' });
+  await c.onSessionChanged();
+  assert.equal(br.store.aCheck, null);
+  assert.notEqual(br.store.ownSlug, 'old-me'); // looked up again for the new session
+});
+
+test('a failed read is not retried for 60 seconds', async () => {
+  const { c, li, tick } = make();
+  li.fetchFn = async () => { li.reads += 1; return { status: 500, ok: false, url: 'x', text: async () => '' }; };
+  await c.handleMessage({ type: 'getStatus' });
+  tick(30000);
+  await c.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, 1);
+  tick(31000);
+  await c.handleMessage({ type: 'getStatus' });
+  assert.equal(li.reads, 2);
+});
+
+test('re-reading an unchanged value does not rewrite the stored check', async () => {
+  const { c, br } = make();
+  let writes = 0;
+  const set0 = br.storage.local.set;
+  br.storage.local.set = async (o) => { if ('aCheck' in o) writes += 1; return set0(o); };
+  await c.handleMessage({ type: 'getStatus', fresh: true });
+  await c.handleMessage({ type: 'getStatus', fresh: true });
+  assert.equal(writes, 1);
+});
+
+test('visiting your own profile before the lookup finishes does not trip', async () => {
+  const li = fakeLinkedIn({ ownSlug: 'me-myself' });
+  const br = fakeBrowser({ bEnabled: true });
+  let releaseLookup;
+  const lookupGate = new Promise((r) => { releaseLookup = r; });
+  const fetchFn = async (url, init) => { if (url.endsWith('/in/me/')) await lookupGate; return li.fetchFn(url, init); };
+  let clock = 0;
+  const c = createController({ storage: br.storage.local, cookies: br.cookies, action: br.action, fetchFn, now: () => clock, schedule: () => {} });
+  await c.init();
+  const nav = c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/me-myself/' });
+  releaseLookup();
+  await nav;
+  clock = 60000;
+  await c.checkGuard();
+  assert.deepEqual(li.puts, []);
+});
+
+test('turning B on while a trip is running is applied after the trip', async () => {
+  const li = fakeLinkedIn();
+  const slow = async (url, init) => { await new Promise((r) => setTimeout(r, 20)); return li.fetchFn(url, init); };
+  const br = fakeBrowser({ bEnabled: true });
+  let clock = 0;
+  const c = createController({ storage: br.storage.local, cookies: br.cookies, action: br.action, fetchFn: slow, now: () => clock, schedule: () => {} });
+  await c.init();
+  await c.onSuspicious({ tabId: 1, time: 0 }).catch(() => {});
+  // onSuspicious awaits the trip; start a trip and a setB concurrently instead:
+  await c.handleMessage({ type: 'setB', on: true });
+  await c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/someone/' });
+  clock = 60000;
+  const tripP = c.checkGuard();
+  const setBP = c.handleMessage({ type: 'setB', on: true });
+  await Promise.all([tripP, setBP]);
+  assert.equal(br.store.bEnabled, true);
+  assert.equal(c.isBEnabled(), true);
 });

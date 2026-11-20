@@ -38,3 +38,10 @@ export function extractViewee(text) {
   const m = text.match(/"vieweeMemberUrn"\s*:\s*"([^"]+)"/);
   return m ? m[1] : null;
 }
+
+// How many profile-view events one batch carries (LinkedIn batches ~a dozen
+// events per request). At least 1 for any view-signal body.
+export function countViewEvents(text) {
+  const n = text.split('"clientBreadcrumbType":"PROFILE_VIEW"').length - 1;
+  return Math.max(1, n);
+}

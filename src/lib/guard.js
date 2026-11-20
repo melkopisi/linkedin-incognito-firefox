@@ -4,7 +4,9 @@
 const EARLY_BLOCK_GRACE_MS = 2000;
 
 export function isProfileVisit(pathname, ownSlug) {
-  const m = pathname.match(/^\/in\/([^/]+)/);
+  // Only the profile itself counts: sub-pages and overlays (contact info,
+  // details, activity) don't send a new view signal.
+  const m = pathname.match(/^\/in\/([^/]+)\/?$/);
   if (!m) return null;
   const slug = decodeURIComponent(m[1]).toLowerCase();
   if (slug === 'me') return null;
@@ -28,10 +30,12 @@ export function createGuard({ windowMs = 10000 } = {}) {
       const dup = pending.some((p) => p.tabId === tabId && p.slug === slug && now - p.opened <= windowMs);
       if (!dup) pending.push({ tabId, slug, opened: now });
     },
-    blocked(tabId, now) {
-      const i = pending.findIndex((p) => p.tabId === tabId && p.opened <= now);
-      if (i !== -1) pending.splice(i, 1);
-      else earlyBlocks.push({ tabId, time: now });
+    blocked(tabId, now, count = 1) {
+      for (let n = 0; n < count; n += 1) {
+        const i = pending.findIndex((p) => p.tabId === tabId && p.opened <= now);
+        if (i !== -1) pending.splice(i, 1);
+        else earlyBlocks.push({ tabId, time: now });
+      }
     },
     suspicious(tabId, now) {
       trips.push({ reason: 'unrecognised-report', tabId, slug: null, time: now });

@@ -14,6 +14,8 @@ const DEFAULTS = {
   aCheck: null, // { value, checkedAt } — last value read back from LinkedIn
 };
 const A_CHECK_TTL_MS = 10 * 60 * 1000;
+const A_FAILED_RETRY_MS = 60 * 1000; // don't hammer LinkedIn when reads fail
+const OWN_SLUG_WAIT_MS = 5000;
 const TRIP_LOG_MAX = 50;
 
 export function createController({ storage, cookies, action, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 30000 }) {
@@ -22,25 +24,59 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
   let bConfirmed = false; // per browser session, never stored
   let a = { verifiedValue: null, error: false };
   let tripping = false;
+  let ownSlugLookup = Promise.resolve();
+  // setA, setB and trips change the same state; run them one at a time.
+  let queue = Promise.resolve();
+  const serial = (fn) => {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => {});
+    return run;
+  };
 
   const state = () => storage.get(DEFAULTS);
 
-  // Reads LinkedIn's setting, reusing a check from the last 10 minutes so
-  // opening the popup or a LinkedIn page doesn't download the settings page.
+  // Reads LinkedIn's setting. Page loads reuse a check from the last 10
+  // minutes; the popup asks for a fresh one. Failed reads are retried after
+  // a minute at the earliest, and the stored check is only rewritten when it
+  // changes (every write wakes all LinkedIn tabs).
   async function refreshA({ force = false } = {}) {
     const s0 = await state();
-    if (!force && s0.aCheck && now() - s0.aCheck.checkedAt <= A_CHECK_TTL_MS) {
-      a = { verifiedValue: s0.aCheck.value, error: false };
-      return a;
+    const c = s0.aCheck;
+    if (c) {
+      const age = now() - c.checkedAt;
+      const fresh = c.value == null ? age <= A_FAILED_RETRY_MS : age <= A_CHECK_TTL_MS && !force;
+      if (fresh) {
+        a = { verifiedValue: c.value, error: false };
+        return a;
+      }
     }
     const value = await readSetting({ fetchFn });
     a = { verifiedValue: value, error: false };
-    await storage.set({ aCheck: value == null ? null : { value, checkedAt: now() } });
+    await rememberCheck(value);
     if (value === 'HIDE') {
       const s = await state();
       if (s.fallbackFailed) await storage.set({ fallbackFailed: false });
     }
     return a;
+  }
+
+  async function rememberCheck(value) {
+    const s = await state();
+    const prev = s.aCheck;
+    // Same value as before: keep the old timestamp unless the TTL ran out.
+    if (prev && prev.value === value && now() - prev.checkedAt <= (value == null ? A_FAILED_RETRY_MS : A_CHECK_TTL_MS) / 2) return;
+    await storage.set({ aCheck: { value, checkedAt: now() } });
+  }
+
+  function lookupOwnSlug() {
+    ownSlugLookup = fetchFn('https://www.linkedin.com/in/me/', { credentials: 'include' })
+      .then((res) => {
+        const m = new URL(res.url).pathname.match(/^\/in\/([^/]+)/);
+        if (m && m[1] !== 'me') return storage.set({ ownSlug: decodeURIComponent(m[1]).toLowerCase() });
+        return undefined;
+      })
+      .catch(() => {}); // signed out; tried again on the next session change
+    return ownSlugLookup;
   }
 
   async function snapshot(extra = {}) {
@@ -61,7 +97,8 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     const csrfToken = await getCsrfToken(cookies);
     const res = await writeSetting(on ? 'HIDE' : 'DISCLOSE_FULL', { fetchFn, csrfToken });
     a = { verifiedValue: res.verifiedValue, error: !res.ok };
-    const patch = { aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() } };
+    await rememberCheck(res.verifiedValue);
+    const patch = {};
     if (on) patch.historyWarningShown = true;
     if (res.ok && on) patch.fallbackFailed = false;
     if (!on && res.ok) patch.tripped = false;
@@ -89,11 +126,8 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     const csrfToken = await getCsrfToken(cookies);
     const res = await writeSetting('HIDE', { fetchFn, csrfToken });
     a = { verifiedValue: res.verifiedValue, error: !res.ok };
-    await storage.set({
-      fallbackFailed: !res.ok,
-      historyWarningShown: true,
-      aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() },
-    });
+    await rememberCheck(res.verifiedValue);
+    await storage.set({ fallbackFailed: !res.ok, historyWarningShown: true });
     // Show the warning inside Firefox: the popup carries the trip banner.
     // The on-page banner comes from the content script. Never fatal.
     try {
@@ -113,29 +147,29 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     async init() {
       const s = await state();
       bEnabled = s.bEnabled;
-      if (!s.ownSlug) {
-        fetchFn('https://www.linkedin.com/in/me/', { credentials: 'include' })
-          .then((res) => {
-            const m = new URL(res.url).pathname.match(/^\/in\/([^/]+)/);
-            if (m && m[1] !== 'me') return storage.set({ ownSlug: decodeURIComponent(m[1]).toLowerCase() });
-            return undefined;
-          })
-          .catch(() => {}); // signed out; try again next start
-      }
+      if (!s.ownSlug) lookupOwnSlug();
     },
 
     async handleMessage(msg) {
       switch (msg && msg.type) {
-        case 'getStatus': await refreshA(); return snapshot();
-        case 'setA': return setA(Boolean(msg.on), Boolean(msg.confirmedHistoryWarning));
-        case 'setB': return setB(Boolean(msg.on));
+        case 'getStatus': await refreshA({ force: Boolean(msg.fresh) }); return snapshot();
+        case 'setA': return serial(() => setA(Boolean(msg.on), Boolean(msg.confirmedHistoryWarning)));
+        case 'setB': return serial(() => setB(Boolean(msg.on)));
         default: return undefined;
       }
     },
 
-    // The user may change the setting by hand there; drop the remembered check.
-    async onSettingsVisited() {
-      await storage.set({ aCheck: null });
+    // LinkedIn's own settings page saved the setting (the user changed it by
+    // hand): read it again now.
+    async onSettingsSaved() {
+      await refreshA({ force: true });
+      await snapshot();
+    },
+
+    // Signed in or out, or switched account: nothing remembered applies.
+    async onSessionChanged() {
+      await storage.set({ aCheck: null, ownSlug: null });
+      lookupOwnSlug();
     },
 
     async onBlocked(info) {
@@ -145,7 +179,7 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
         await storage.set({ bConfirmedAt: now() });
         await snapshot();
       }
-      guard.blocked(info.tabId, now());
+      guard.blocked(info.tabId, now(), info.count || 1);
     },
 
     async onSuspicious(info) {
@@ -155,6 +189,8 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
 
     async onNavigation(details) {
       if (!bEnabled) return;
+      // Know who "you" are before deciding this isn't your own profile.
+      await Promise.race([ownSlugLookup, new Promise((r) => { setTimeout(r, OWN_SLUG_WAIT_MS); })]);
       const s = await state();
       const slug = isProfileVisit(new URL(details.url).pathname, s.ownSlug);
       if (!slug) return;
@@ -168,7 +204,7 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
       if (trips.length === 0 || !bEnabled) return;
       tripping = true;
       try {
-        await trip(trips[0]);
+        await serial(() => trip(trips[0]));
       } finally {
         tripping = false;
       }

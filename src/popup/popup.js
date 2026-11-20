@@ -23,7 +23,9 @@ function render(res) {
     banner.className = 'banner bad';
     banner.hidden = false;
   } else if (status.badge === '!') {
-    banner.textContent = 'View blocking stopped working. The last profile you opened may have seen your visit. Private mode is now on.';
+    banner.textContent = a.verifiedValue === 'HIDE'
+      ? 'View blocking stopped working. The last profile you opened may have seen your visit. Private mode is now on.'
+      : 'View blocking stopped working, and Private mode is off — you are visible to profiles you view.';
     banner.className = 'banner bad';
     banner.hidden = false;
   }
@@ -68,4 +70,10 @@ $('cancelA').addEventListener('click', () => run({ type: 'getStatus' }));
 $('offAYes').addEventListener('click', () => run({ type: 'setA', on: false }));
 $('offANo').addEventListener('click', () => { $('offerOffA').hidden = true; });
 
-run({ type: 'getStatus' });
+// Show the remembered status at once, then confirm with LinkedIn.
+(async () => {
+  await run({ type: 'getStatus' });
+  const label = $('label');
+  if (label.textContent !== 'Error') label.textContent += ' · re-checking…';
+  await run({ type: 'getStatus', fresh: true });
+})();

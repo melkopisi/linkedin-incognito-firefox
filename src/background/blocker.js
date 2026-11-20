@@ -1,5 +1,5 @@
 // Switch B: cancels LinkedIn tracking requests that carry the profile-view event.
-import { decodeBody, classifyBody, extractViewee } from '../lib/matcher.js';
+import { decodeBody, classifyBody, extractViewee, countViewEvents } from '../lib/matcher.js';
 
 // onInspected (optional, used for development logging) receives every
 // recognised body, including while blocking is off.
@@ -18,7 +18,7 @@ export function createBlocker({ rules, isEnabled, onBlocked, onSuspicious, onIns
       if (kind === 'other') return {};
       if (inspect) onInspected({ kind, text, enabled, details });
       if (!enabled) return {};
-      const info = { tabId: details.tabId, viewee: extractViewee(text), url: details.url, time: details.timeStamp ?? Date.now() };
+      const info = { tabId: details.tabId, viewee: extractViewee(text), url: details.url, time: details.timeStamp ?? Date.now(), count: kind === 'view-signal' ? countViewEvents(text) : 0 };
       if (kind === 'view-signal') onBlocked(info);
       else onSuspicious(info);
       return { cancel: true };

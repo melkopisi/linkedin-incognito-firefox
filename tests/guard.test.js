@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { isProfileVisit, createGuard } from '../src/lib/guard.js';
 
 test('isProfileVisit returns the lowercased slug of someone else\'s profile', () => {
-  assert.equal(isProfileVisit('/in/Some-One/details/experience/', 'me-myself'), 'some-one');
+  assert.equal(isProfileVisit('/in/Some-One/', 'me-myself'), 'some-one');
   assert.equal(isProfileVisit('/in/some-one/', null), 'some-one');
 });
 
@@ -80,4 +80,19 @@ test('an old unmatched block does not cover a later visit', () => {
   g.blocked(1, 0);
   g.visitOpened(1, 'a', 5000);
   assert.equal(g.check(15001).length, 1);
+});
+
+test('profile sub-pages and overlays are not new visits', () => {
+  assert.equal(isProfileVisit('/in/some-one/overlay/contact-info/', null), null);
+  assert.equal(isProfileVisit('/in/some-one/details/experience/', null), null);
+  assert.equal(isProfileVisit('/in/some-one/recent-activity/all/', null), null);
+  assert.equal(isProfileVisit('/in/some-one', null), 'some-one');
+});
+
+test('a block with count 2 clears two pending visits', () => {
+  const g = createGuard({ windowMs: 10000 });
+  g.visitOpened(1, 'a', 0);
+  g.visitOpened(1, 'b', 100);
+  g.blocked(1, 200, 2);
+  assert.deepEqual(g.check(20000), []);
 });

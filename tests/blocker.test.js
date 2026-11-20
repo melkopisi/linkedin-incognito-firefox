@@ -84,3 +84,10 @@ test('a disabled blocker skips decoding when shouldInspect says no', async () =>
   const d = { method: 'POST', tabId: 1, url: 'x', requestBody: { get raw() { throw new Error('decoded'); } } };
   assert.deepEqual(await blocker.handle(d), {});
 });
+
+test('a batch with two view events reports a count of 2', async () => {
+  const { blocker, calls } = setup();
+  await blocker.handle(details('batch-two-views.json'));
+  assert.equal(calls.blocked.length, 1);
+  assert.equal(calls.blocked[0].count, 2);
+});

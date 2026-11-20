@@ -74,7 +74,12 @@
     run({ type: 'getStatus' });
     // Follow changes made from the popup or by the guard.
     browser.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && (changes.aCheck || changes.bEnabled || changes.tripped || changes.bConfirmedAt)) run({ type: 'getStatus' });
+      if (area !== 'local') return;
+      // Only react to real changes: every LinkedIn tab hears every write.
+      const aChanged = changes.aCheck && (changes.aCheck.oldValue || {}).value !== (changes.aCheck.newValue || {}).value;
+      const other = ['bEnabled', 'tripped', 'bConfirmedAt', 'fallbackFailed']
+        .some((k) => changes[k] && JSON.stringify(changes[k].oldValue) !== JSON.stringify(changes[k].newValue));
+      if (aChanged || other) run({ type: 'getStatus' });
     });
     return li;
   }

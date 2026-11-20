@@ -3,7 +3,7 @@
 **Name:** Quiet Profile Browsing for LinkedIn
 
 **Summary (≤250 chars):**
-Look at LinkedIn profiles without showing up in "Who viewed your profile". One click switches LinkedIn's own Private mode, checked against LinkedIn every time. Optional experimental mode blocks the view signal instead. No data collected.
+Look at LinkedIn profiles without showing up in "Who viewed your profile". One click switches LinkedIn's own Private mode and confirms it with LinkedIn. Optional experimental mode blocks the view signal instead. No data collected.
 
 **Category:** Privacy & Security
 

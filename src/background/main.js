@@ -43,9 +43,20 @@ const onNav = async (details) => {
 browser.webNavigation.onCompleted.addListener(onNav, navFilter);
 browser.webNavigation.onHistoryStateUpdated.addListener(onNav, navFilter);
 
-browser.webNavigation.onCompleted.addListener(
-  () => ready.then(() => controller.onSettingsVisited()),
-  { url: [{ hostEquals: 'www.linkedin.com', pathPrefix: '/mypreferences/' }, { hostEquals: 'www.linkedin.com', pathPrefix: '/psettings/' }] },
+// The user changed the setting on LinkedIn's own settings page: re-read it.
+browser.webRequest.onCompleted.addListener(
+  (details) => {
+    if (details.method === 'PUT' && details.tabId !== -1) ready.then(() => controller.onSettingsSaved());
+  },
+  { urls: ['*://www.linkedin.com/mysettings-api/settingsApiSettings/discloseAsProfileViewer*'] },
 );
+
+// Signed in, out, or into another account: forget what was remembered.
+let sessionTimer = null;
+browser.cookies.onChanged.addListener(({ cookie }) => {
+  if (!/(^|\.)linkedin\.com$/.test(cookie.domain) || !['li_at', 'JSESSIONID'].includes(cookie.name)) return;
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => ready.then(() => controller.onSessionChanged()), 1000);
+});
 
 browser.runtime.onMessage.addListener((msg) => ready.then(() => controller.handleMessage(msg)));

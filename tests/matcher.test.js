@@ -32,3 +32,13 @@ test('extractViewee finds the viewed member urn', () => {
   assert.equal(extractViewee(fixture('batch-with-view.json')), 'urn:li:member:1');
   assert.equal(extractViewee(fixture('batch-without-view.json')), null);
 });
+
+test('impressions that only point back at a profile-view breadcrumb are other', () => {
+  assert.equal(classifyBody(fixture('batch-pointer-only.json'), rules()), 'other');
+});
+
+test('countViewEvents counts each profile-view event in a batch', async () => {
+  const { countViewEvents } = await import('../src/lib/matcher.js');
+  assert.equal(countViewEvents(fixture('batch-two-views.json')), 2);
+  assert.equal(countViewEvents(fixture('batch-with-view.json')), 1);
+});
