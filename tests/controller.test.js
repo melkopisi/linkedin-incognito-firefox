@@ -227,3 +227,15 @@ test('init resolves without waiting for the own-profile lookup', async () => {
   assert.equal(result, 'resolved');
   assert.equal(c.isBEnabled(), true);
 });
+
+test('a blocked system notification does not stop the fallback', async () => {
+  const { c, li, br, tick } = make({ store: { bEnabled: true } });
+  br.notificationsApi.create = async () => { throw new Error('notifications blocked by OS'); };
+  await c.init();
+  await c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/someone/' });
+  tick(10001);
+  await c.checkGuard();
+  assert.deepEqual(li.puts, ['HIDE']);
+  assert.equal(br.badge, '!');
+  assert.equal(br.store.tripLog.length, 1);
+});

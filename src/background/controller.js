@@ -82,6 +82,7 @@ export function createController({ storage, cookies, action, notifications, fetc
   }
 
   async function trip(t) {
+    console.info(`[QPB] trip reason=${t.reason} tab=${t.tabId} t=${now()}`);
     bEnabled = false;
     bConfirmed = false;
     guard.reset();
@@ -97,12 +98,12 @@ export function createController({ storage, cookies, action, notifications, fetc
       historyWarningShown: true,
       aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() },
     });
-    await notifications.create({
-      type: 'basic',
-      iconUrl: 'icons/icon.svg',
-      title: TRIP_TITLE,
-      message: res.ok ? TRIP_MESSAGE : VISIBLE_MESSAGE,
-    });
+    // Backup to the on-page banner; may be blocked by the OS, so never fatal.
+    try {
+      await notifications.create({ type: 'basic', title: TRIP_TITLE, message: res.ok ? TRIP_MESSAGE : VISIBLE_MESSAGE });
+    } catch (err) {
+      console.warn('[QPB] notification failed', err);
+    }
     await snapshot();
   }
 

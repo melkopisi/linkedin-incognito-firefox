@@ -18,8 +18,8 @@ const blockerReady = fetch(browser.runtime.getURL('rules/view-signal.json'))
   .then((rules) => createBlocker({
     rules,
     isEnabled: () => controller.isBEnabled(),
-    onBlocked: (info) => controller.onBlocked(info),
-    onSuspicious: (info) => controller.onSuspicious(info),
+    onBlocked: (info) => { console.info(`[QPB] blocked view signal tab=${info.tabId} t=${Date.now()}`); controller.onBlocked(info); },
+    onSuspicious: (info) => { console.info(`[QPB] suspicious report tab=${info.tabId} t=${Date.now()}`); controller.onSuspicious(info); },
   }));
 
 browser.webRequest.onBeforeRequest.addListener(
@@ -34,6 +34,7 @@ browser.webRequest.onBeforeRequest.addListener(
 const navFilter = { url: [{ hostEquals: 'www.linkedin.com', pathPrefix: '/in/' }] };
 const onNav = async (details) => {
   if (details.frameId !== 0) return;
+  console.info(`[QPB] nav tab=${details.tabId} t=${Date.now()} path=${new URL(details.url).pathname.replace(/^\/in\/[^/]+/, '/in/<slug>')}`);
   await ready;
   controller.onNavigation(details);
 };

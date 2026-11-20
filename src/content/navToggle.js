@@ -74,6 +74,50 @@
     return li;
   }
 
+  // Loud on-page warning when the guard trips. Stays until dismissed:
+  // system notifications are easy to miss or blocked by the OS.
+  const TOAST_ID = 'qpb-trip-toast';
+  function showToast(text) {
+    document.getElementById(TOAST_ID)?.remove();
+    const host = document.createElement('div');
+    host.id = TOAST_ID;
+    const root = host.attachShadow({ mode: 'closed' });
+    const style = document.createElement('style');
+    style.textContent = `
+      .box { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 2147483647; max-width: 520px; width: calc(100% - 32px);
+             background: #cf222e; color: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.35); padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start;
+             font: 14px/1.4 system-ui, sans-serif; }
+      strong { display: block; font-size: 15px; margin-bottom: 2px; }
+      button { all: unset; cursor: pointer; font-weight: 600; padding: 2px 8px; border: 1px solid rgba(255,255,255,.7); border-radius: 6px; white-space: nowrap; }`;
+    const box = document.createElement('div');
+    box.className = 'box';
+    box.setAttribute('role', 'alert');
+    const msg = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = 'LinkedIn view blocking stopped working';
+    msg.append(title, document.createTextNode(text));
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Dismiss';
+    close.addEventListener('click', () => host.remove());
+    box.append(msg, close);
+    root.append(style, box);
+    document.documentElement.append(host);
+  }
+
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const log = changes.tripLog;
+    const grew = log && (log.newValue || []).length > 0
+      && JSON.stringify((log.newValue || []).at(-1)) !== JSON.stringify((log.oldValue || []).at(-1));
+    if (grew) {
+      showToast(' The profile you just opened may have seen your visit. Private mode has been turned on (this may erase your viewer history).');
+    }
+    if (changes.fallbackFailed && changes.fallbackFailed.newValue === true) {
+      showToast(' You are currently visible to profiles you view. Turning on Private mode failed — turn it on in LinkedIn settings.');
+    }
+  });
+
   let toggle = null;
   const insert = () => {
     if (document.getElementById(ID)) return true;
