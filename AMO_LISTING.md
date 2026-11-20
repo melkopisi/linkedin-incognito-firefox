@@ -7,6 +7,10 @@ Look at LinkedIn profiles without showing up in "Who viewed your profile". One c
 
 **Category:** Privacy & Security
 
+**License:** GNU General Public License v3.0 (GPL-3.0-or-later)
+
+**Source code:** https://github.com/melkopisi/linkedin-incognito-firefox
+
 **Description:**
 Quiet Profile Browsing puts LinkedIn's "Private mode" one click away, in the
 Firefox toolbar and in LinkedIn's top bar.
