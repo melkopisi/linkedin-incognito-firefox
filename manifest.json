@@ -7,22 +7,50 @@
     "gecko": {
       "id": "quiet-profile-browsing@extension",
       "strict_min_version": "140.0",
-      "data_collection_permissions": { "required": ["none"] }
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   },
-  "permissions": ["storage", "webRequest", "webRequestBlocking", "webNavigation", "cookies", "notifications"],
-  "host_permissions": ["*://*.linkedin.com/*"],
-  "background": { "scripts": ["src/background/main.js"], "type": "module" },
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webRequestBlocking",
+    "webNavigation",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://*.linkedin.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "src/background/main.js"
+    ],
+    "type": "module"
+  },
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_title": "Quiet Profile Browsing",
-    "default_icon": { "48": "icons/icon.svg", "96": "icons/icon.svg" }
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    }
   },
-  "icons": { "48": "icons/icon.svg", "96": "icons/icon.svg", "128": "icons/icon.svg" },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg",
+    "128": "icons/icon.svg"
+  },
   "content_scripts": [
     {
-      "matches": ["*://www.linkedin.com/*"],
-      "js": ["src/content/navToggle.js"],
+      "matches": [
+        "*://www.linkedin.com/*"
+      ],
+      "js": [
+        "src/content/navToggle.js"
+      ],
       "run_at": "document_idle"
     }
   ]

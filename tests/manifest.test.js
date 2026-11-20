@@ -12,7 +12,7 @@ test('manifest meets AMO and design constraints', () => {
   assert.equal(g.strict_min_version, '140.0');
   assert.deepEqual(g.data_collection_permissions, { required: ['none'] });
   assert.deepEqual(m.host_permissions, ['*://*.linkedin.com/*']);
-  assert.deepEqual([...m.permissions].sort(), ['cookies', 'notifications', 'storage', 'webNavigation', 'webRequest', 'webRequestBlocking']);
+  assert.deepEqual([...m.permissions].sort(), ['cookies', 'storage', 'webNavigation', 'webRequest', 'webRequestBlocking']);
   assert.deepEqual(m.background, { scripts: ['src/background/main.js'], type: 'module' });
   assert.doesNotMatch(m.name, /^LinkedIn/);
 });

@@ -8,7 +8,6 @@ const controller = createController({
   storage: browser.storage.local,
   cookies: browser.cookies,
   action: browser.action,
-  notifications: browser.notifications,
   fetchFn: (url, init) => fetch(url, init),
 });
 const ready = controller.init();

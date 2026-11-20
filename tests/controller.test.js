@@ -24,7 +24,7 @@ function fakeBrowser(initial = {}) {
   const store = { ...initial };
   const b = {
     store,
-    notifications: [],
+    popupOpened: 0,
     badge: '',
     title: '',
     storage: { local: {
@@ -32,14 +32,13 @@ function fakeBrowser(initial = {}) {
       set: async (obj) => { Object.assign(store, obj); },
     } },
     cookies: { get: async () => ({ value: '"ajax:1"' }) },
-    notifications_api: null,
     action: {
       setBadgeText: async ({ text }) => { b.badge = text; },
       setBadgeBackgroundColor: async () => {},
       setTitle: async ({ title }) => { b.title = title; },
+      openPopup: async () => { b.popupOpened += 1; },
     },
   };
-  b.notificationsApi = { create: async (opts) => { b.notifications.push(opts); } };
   return b;
 }
 
@@ -51,7 +50,6 @@ const make = (opts = {}) => {
     storage: br.storage.local,
     cookies: br.cookies,
     action: br.action,
-    notifications: br.notificationsApi,
     fetchFn: li.fetchFn,
     now: () => clock,
     schedule: () => {}, // tests drive checkGuard() directly
@@ -92,7 +90,7 @@ test('the check is shared across restarts through storage', async () => {
   const { c, li, br } = make();
   await c.handleMessage({ type: 'getStatus' });
   const again = createController({
-    storage: br.storage.local, cookies: br.cookies, action: br.action, notifications: br.notificationsApi,
+    storage: br.storage.local, cookies: br.cookies, action: br.action,
     fetchFn: li.fetchFn, now: () => 0, schedule: () => {},
   });
   await again.handleMessage({ type: 'getStatus' });
@@ -153,7 +151,7 @@ test('own profile visit does not trip the guard', async () => {
   assert.deepEqual(li.puts, []);
 });
 
-test('missed block trips: B off, A on, notification, ! badge, log entry', async () => {
+test('missed block trips: B off, A on, popup opened, ! badge, log entry', async () => {
   const { c, li, br, tick } = make({ store: { bEnabled: true } });
   await c.init();
   await c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/someone/' });
@@ -163,9 +161,7 @@ test('missed block trips: B off, A on, notification, ! badge, log entry', async 
   assert.deepEqual(li.puts, ['HIDE']);
   assert.equal(br.store.tripped, true);
   assert.equal(br.badge, '!');
-  assert.equal(br.notifications.length, 1);
-  assert.equal(br.notifications[0].title, 'LinkedIn view blocking stopped working');
-  assert.match(br.notifications[0].message, /may have seen your visit/);
+  assert.equal(br.popupOpened, 1);
   assert.deepEqual(br.store.tripLog.map((e) => [e.reason, e.path]), [['missed-block', '/in/someone/']]);
 });
 
@@ -176,7 +172,6 @@ test('trip with a failing fallback warns that you are visible', async () => {
   tick(10001);
   await c.checkGuard();
   assert.equal(br.store.fallbackFailed, true);
-  assert.match(br.notifications[0].message, /You are currently visible to profiles you view/);
   const res = await c.handleMessage({ type: 'getStatus' });
   assert.equal(res.status.level, 'warning');
 });
@@ -219,7 +214,7 @@ test('guard does nothing while B is off', async () => {
 test('init resolves without waiting for the own-profile lookup', async () => {
   const br = fakeBrowser({ bEnabled: true });
   const c = createController({
-    storage: br.storage.local, cookies: br.cookies, action: br.action, notifications: br.notificationsApi,
+    storage: br.storage.local, cookies: br.cookies, action: br.action,
     fetchFn: () => new Promise(() => {}), // LinkedIn never answers
     schedule: () => {},
   });
@@ -228,9 +223,9 @@ test('init resolves without waiting for the own-profile lookup', async () => {
   assert.equal(c.isBEnabled(), true);
 });
 
-test('a blocked system notification does not stop the fallback', async () => {
+test('a popup that cannot open does not stop the fallback', async () => {
   const { c, li, br, tick } = make({ store: { bEnabled: true } });
-  br.notificationsApi.create = async () => { throw new Error('notifications blocked by OS'); };
+  br.action.openPopup = async () => { throw new Error('openPopup not allowed'); };
   await c.init();
   await c.onNavigation({ tabId: 1, url: 'https://www.linkedin.com/in/someone/' });
   tick(10001);

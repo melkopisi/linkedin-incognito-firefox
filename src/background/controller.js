@@ -15,11 +15,8 @@ const DEFAULTS = {
 };
 const A_CHECK_TTL_MS = 10 * 60 * 1000;
 const TRIP_LOG_MAX = 50;
-const TRIP_TITLE = 'LinkedIn view blocking stopped working';
-const TRIP_MESSAGE = 'The profile you just opened may have seen your visit. Private mode is now on (this may erase your viewer history).';
-const VISIBLE_MESSAGE = 'You are currently visible to profiles you view. Turn on Private mode in LinkedIn settings.';
 
-export function createController({ storage, cookies, action, notifications, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 10000 }) {
+export function createController({ storage, cookies, action, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 10000 }) {
   const guard = createGuard({ windowMs });
   let bEnabled = false; // mirrored for the synchronous webRequest check
   let bConfirmed = false; // per browser session, never stored
@@ -98,11 +95,12 @@ export function createController({ storage, cookies, action, notifications, fetc
       historyWarningShown: true,
       aCheck: res.verifiedValue == null ? null : { value: res.verifiedValue, checkedAt: now() },
     });
-    // Backup to the on-page banner; may be blocked by the OS, so never fatal.
+    // Show the warning inside Firefox: the popup carries the trip banner.
+    // The on-page banner comes from the content script. Never fatal.
     try {
-      await notifications.create({ type: 'basic', title: TRIP_TITLE, message: res.ok ? TRIP_MESSAGE : VISIBLE_MESSAGE });
+      await action.openPopup();
     } catch (err) {
-      console.warn('[QPB] notification failed', err);
+      console.warn('[QPB] could not open popup', err);
     }
     await snapshot();
   }
