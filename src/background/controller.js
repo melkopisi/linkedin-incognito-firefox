@@ -1,0 +1,214 @@
+// Ties switch A, switch B and the guard together. All browser APIs are
+// passed in so this can be tested without Firefox.
+import { readSetting, writeSetting, getCsrfToken } from '../lib/settingA.js';
+import { isProfileVisit, createGuard } from '../lib/guard.js';
+import { computeStatus, navLabel, bConfirmNote } from '../lib/status.js';
+
+const DEFAULTS = {
+  bEnabled: false,
+  tripped: false,
+  fallbackFailed: false,
+  historyWarningShown: false,
+  tripLog: [],
+  ownSlug: null,
+  aCheck: null, // { value, checkedAt } — last value read back from LinkedIn
+};
+const A_CHECK_TTL_MS = 10 * 60 * 1000;
+const A_FAILED_RETRY_MS = 60 * 1000; // don't hammer LinkedIn when reads fail
+const OWN_SLUG_WAIT_MS = 5000;
+const TRIP_LOG_MAX = 50;
+
+export function createController({ storage, cookies, action, fetchFn, now = Date.now, schedule = setTimeout, windowMs = 30000 }) {
+  const guard = createGuard({ windowMs });
+  let bEnabled = false; // mirrored for the synchronous webRequest check
+  let bConfirmed = false; // per browser session, never stored
+  let a = { verifiedValue: null, error: false };
+  let tripping = false;
+  let ownSlugLookup = Promise.resolve();
+  // setA, setB and trips change the same state; run them one at a time.
+  let queue = Promise.resolve();
+  const serial = (fn) => {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => {});
+    return run;
+  };
+
+  const state = () => storage.get(DEFAULTS);
+
+  // Reads LinkedIn's setting. Page loads reuse a check from the last 10
+  // minutes; the popup asks for a fresh one. Failed reads are retried after
+  // a minute at the earliest, and the stored check is only rewritten when it
+  // changes (every write wakes all LinkedIn tabs).
+  async function refreshA({ force = false } = {}) {
+    const s0 = await state();
+    const c = s0.aCheck;
+    if (c) {
+      const age = now() - c.checkedAt;
+      const fresh = c.value == null ? age <= A_FAILED_RETRY_MS : age <= A_CHECK_TTL_MS && !force;
+      if (fresh) {
+        a = { verifiedValue: c.value, error: false };
+        return a;
+      }
+    }
+    const value = await readSetting({ fetchFn });
+    a = { verifiedValue: value, error: false };
+    await rememberCheck(value);
+    if (value === 'HIDE') {
+      const s = await state();
+      if (s.fallbackFailed) await storage.set({ fallbackFailed: false });
+    }
+    return a;
+  }
+
+  async function rememberCheck(value) {
+    const s = await state();
+    const prev = s.aCheck;
+    // Same value as before: keep the old timestamp unless the TTL ran out.
+    if (prev && prev.value === value && now() - prev.checkedAt <= (value == null ? A_FAILED_RETRY_MS : A_CHECK_TTL_MS) / 2) return;
+    await storage.set({ aCheck: { value, checkedAt: now() } });
+  }
+
+  function lookupOwnSlug() {
+    ownSlugLookup = fetchFn('https://www.linkedin.com/in/me/', { credentials: 'include' })
+      .then((res) => {
+        const m = new URL(res.url).pathname.match(/^\/in\/([^/]+)/);
+        if (m && m[1] !== 'me') return storage.set({ ownSlug: decodeURIComponent(m[1]).toLowerCase() });
+        return undefined;
+      })
+      .catch(() => {}); // signed out; tried again on the next session change
+    return ownSlugLookup;
+  }
+
+  async function snapshot(extra = {}) {
+    const s = await state();
+    const status = computeStatus({ a, b: { enabled: s.bEnabled, confirmed: bConfirmed }, tripped: s.tripped, fallbackFailed: s.fallbackFailed });
+    await action.setBadgeText({ text: status.badge });
+    if (status.badge) await action.setBadgeBackgroundColor({ color: '#d32f2f' });
+    await action.setTitle({ title: status.label });
+    const b = { enabled: s.bEnabled, confirmed: bConfirmed };
+    return { status, nav: navLabel(status, a, b), bNote: bConfirmNote(b), a, b, tripLog: s.tripLog, ...extra };
+  }
+
+  async function setA(on, confirmedHistoryWarning) {
+    const s = await state();
+    if (on && !s.historyWarningShown && !confirmedHistoryWarning) {
+      await refreshA();
+      return snapshot({ needsHistoryWarning: true });
+    }
+    const csrfToken = await getCsrfToken(cookies);
+    const res = await writeSetting(on ? 'HIDE' : 'DISCLOSE_FULL', { fetchFn, csrfToken });
+    a = { verifiedValue: res.verifiedValue, error: !res.ok };
+    await rememberCheck(res.verifiedValue);
+    const patch = {};
+    if (on) patch.historyWarningShown = true;
+    if (res.ok && on) patch.fallbackFailed = false;
+    if (!on && res.ok) patch.tripped = false;
+    await storage.set(patch);
+    return snapshot();
+  }
+
+  async function setB(on) {
+    bEnabled = on;
+    if (!on) bConfirmed = false;
+    guard.reset();
+    await storage.set(on ? { bEnabled: true, tripped: false } : { bEnabled: false });
+    await refreshA();
+    return snapshot({ offerTurnOffA: on && a.verifiedValue === 'HIDE' });
+  }
+
+  async function trip(t) {
+    bEnabled = false;
+    bConfirmed = false;
+    guard.reset();
+    const s = await state();
+    const entry = { time: t.time, reason: t.reason, path: t.slug ? `/in/${t.slug}/` : null };
+    const tripLog = [...s.tripLog, entry].slice(-TRIP_LOG_MAX);
+    await storage.set({ bEnabled: false, tripped: true, tripLog });
+    const csrfToken = await getCsrfToken(cookies);
+    const res = await writeSetting('HIDE', { fetchFn, csrfToken });
+    a = { verifiedValue: res.verifiedValue, error: !res.ok };
+    await rememberCheck(res.verifiedValue);
+    await storage.set({ fallbackFailed: !res.ok, historyWarningShown: true });
+    // Show the warning inside Firefox: the popup carries the trip banner.
+    // The on-page banner comes from the content script. Never fatal.
+    try {
+      await action.openPopup();
+    } catch (err) {
+      // window not focused; the on-page banner and badge still show
+    }
+    await snapshot();
+  }
+
+  return {
+    isBEnabled: () => bEnabled,
+
+    // Resolves once stored state is loaded. The own-profile lookup runs in
+    // the background: awaiting it here would deadlock, because that request
+    // passes through the webRequest listener, which waits for init.
+    async init() {
+      const s = await state();
+      bEnabled = s.bEnabled;
+      if (!s.ownSlug) lookupOwnSlug();
+    },
+
+    async handleMessage(msg) {
+      switch (msg && msg.type) {
+        case 'getStatus': await refreshA({ force: Boolean(msg.fresh) }); return snapshot();
+        case 'setA': return serial(() => setA(Boolean(msg.on), Boolean(msg.confirmedHistoryWarning)));
+        case 'setB': return serial(() => setB(Boolean(msg.on)));
+        default: return undefined;
+      }
+    },
+
+    // LinkedIn's own settings page saved the setting (the user changed it by
+    // hand): read it again now.
+    async onSettingsSaved() {
+      await refreshA({ force: true });
+      await snapshot();
+    },
+
+    // Signed in or out, or switched account: nothing remembered applies.
+    async onSessionChanged() {
+      await storage.set({ aCheck: null, ownSlug: null });
+      lookupOwnSlug();
+    },
+
+    async onBlocked(info) {
+      if (!bConfirmed) {
+        bConfirmed = true;
+        // Signal only (lets the nav toggle re-render); confirmation itself stays in memory.
+        await storage.set({ bConfirmedAt: now() });
+        await snapshot();
+      }
+      guard.blocked(info.tabId, now(), info.count || 1);
+    },
+
+    async onSuspicious(info) {
+      guard.suspicious(info.tabId, now());
+      await this.checkGuard();
+    },
+
+    async onNavigation(details) {
+      if (!bEnabled) return;
+      // Know who "you" are before deciding this isn't your own profile.
+      await Promise.race([ownSlugLookup, new Promise((r) => { setTimeout(r, OWN_SLUG_WAIT_MS); })]);
+      const s = await state();
+      const slug = isProfileVisit(new URL(details.url).pathname, s.ownSlug);
+      if (!slug) return;
+      guard.visitOpened(details.tabId, slug, now());
+      schedule(() => this.checkGuard(), windowMs + 100);
+    },
+
+    async checkGuard() {
+      if (tripping) return;
+      const trips = guard.check(now());
+      if (trips.length === 0 || !bEnabled) return;
+      tripping = true;
+      try {
+        await serial(() => trip(trips[0]));
+      } finally {
+        tripping = false;
+      }
+    },
+  };
+}

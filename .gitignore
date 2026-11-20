@@ -3,3 +3,4 @@ node_modules/
 web-artifacts/
 dev/
 .DS_Store
+web-ext-artifacts/
