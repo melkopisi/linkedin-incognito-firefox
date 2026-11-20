@@ -1,0 +1,20 @@
+:root { --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --line: #d0d7de; --ok: #1a7f37; --exp: #bf8700; --bad: #cf222e; --unk: #8c959f; --banner: #f6f8fa; --warnbg: #fff8c5; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1c1e21; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --banner: #262a2f; --warnbg: #3b2f00; } }
+body { margin: 0; padding: 12px 14px; width: 300px; background: var(--bg); color: var(--fg); font: 13px/1.4 system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; margin-bottom: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--unk); flex: none; }
+.dot.protected { background: var(--ok); } .dot.experimental { background: var(--exp); }
+.dot.unprotected, .dot.warning { background: var(--bad); }
+.banner { background: var(--banner); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; }
+.banner.warn { background: var(--warnbg); } .banner.bad { border-color: var(--bad); }
+.banner p { margin: 0 0 6px; }
+.row { display: flex; gap: 6px; }
+button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.switch { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.switch input { margin-top: 2px; }
+.text small { color: var(--muted); }
+.sub { display: block; }
+.tag { font-size: 11px; color: var(--exp); border: 1px solid var(--exp); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+details { border-top: 1px solid var(--line); padding-top: 8px; color: var(--muted); }
+ul { margin: 6px 0 0; padding-left: 18px; }

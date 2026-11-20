@@ -1,2 +1,50 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Quiet Profile Browsing</title></head><body></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Quiet Profile Browsing</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <span id="dot" class="dot"></span>
+    <span id="label">Checking…</span>
+  </header>
+
+  <section id="banner" class="banner" hidden></section>
+
+  <section id="historyWarning" class="banner warn" hidden>
+    <p>LinkedIn says Private mode may disable “Who’s viewed your profile” and erase your viewer history.</p>
+    <div class="row">
+      <button id="confirmA" class="primary">Turn on Private mode</button>
+      <button id="cancelA">Cancel</button>
+    </div>
+  </section>
+
+  <section id="offerOffA" class="banner" hidden>
+    <p>B keeps your viewer list only if Private mode is off. Turn it off?</p>
+    <div class="row">
+      <button id="offAYes" class="primary">Turn off</button>
+      <button id="offANo">Keep on</button>
+    </div>
+  </section>
+
+  <label class="switch">
+    <input type="checkbox" id="toggleA">
+    <span class="text">Private mode <small>(LinkedIn setting)</small></span>
+  </label>
+
+  <label class="switch">
+    <input type="checkbox" id="toggleB">
+    <span class="text">Block view signal <span class="tag">Experimental</span>
+      <small class="sub">May stop working when LinkedIn changes things.</small></span>
+  </label>
+
+  <details id="log">
+    <summary>Recent warnings</summary>
+    <ul id="logList"></ul>
+  </details>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
