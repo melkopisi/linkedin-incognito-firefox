@@ -222,7 +222,9 @@
   });
 
   let toggle = null;
+  let stopped = false;
   const insert = () => {
+    if (stopped) return true;
     const ul = findNavList();
     if (!ul) return false;
     if (toggle && toggle.parentElement === ul) return true; // already in the right place
@@ -246,11 +248,20 @@
     requestAnimationFrame(() => { pending = false; insert(); });
   });
 
+  // Hand the top bar to whichever copy of this script loaded last.
+  let finder = null;
+  globalThis.qpbClaimNav(document, ID, () => {
+    stopped = true;
+    keepAlive.disconnect();
+    if (finder) finder.disconnect();
+    if (toggle) toggle.remove();
+  });
+
   if (insert()) {
     keepAlive.observe(document.body, { childList: true, subtree: true });
     return;
   }
-  const finder = new MutationObserver(() => {
+  finder = new MutationObserver(() => {
     if (insert()) {
       finder.disconnect();
       keepAlive.observe(document.body, { childList: true, subtree: true });

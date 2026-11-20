@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Quiet Profile Browsing for LinkedIn",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One-click private profile browsing on LinkedIn, with an experimental view-signal blocker. Not affiliated with LinkedIn.",
   "browser_specific_settings": {
     "gecko": {
@@ -42,9 +42,9 @@
     }
   },
   "icons": {
-    "48": "icons/icon.svg",
-    "96": "icons/icon.svg",
-    "128": "icons/icon.svg"
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
   },
   "content_scripts": [
     {
@@ -52,6 +52,7 @@
         "*://www.linkedin.com/*"
       ],
       "js": [
+        "src/content/navClaim.js",
         "src/content/navToggle.js"
       ],
       "run_at": "document_idle"
