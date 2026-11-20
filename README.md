@@ -1,4 +1,4 @@
-# Quiet Profile Browsing for LinkedIn
+# Quiet Profile Browsing for LinkedIn (Experimental, do at your own risk) 
 
 A Firefox extension for viewing LinkedIn profiles without appearing in
 "Who viewed your profile".
