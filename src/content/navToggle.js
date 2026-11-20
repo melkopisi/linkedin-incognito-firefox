@@ -30,7 +30,9 @@
       button:hover { opacity: 1; }
       .pill { width: 28px; height: 16px; border-radius: 8px; background: #8c959f; position: relative; transition: background .15s; }
       .pill::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left .15s; }
-      .on .pill { background: #1a7f37; } .on .pill::after { left: 14px; }
+      .on .pill::after { left: 14px; }
+      .protected .pill { background: #1a7f37; } .experimental .pill { background: #bf8700; }
+      .warning .pill { background: #cf222e; }
       .busy { opacity: .5; pointer-events: none; }`;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -46,6 +48,9 @@
       if (!res) return;
       on = res.a.verifiedValue === 'HIDE';
       btn.classList.toggle('on', on);
+      // Colour follows actual protection (A or confirmed B), not just A.
+      btn.classList.remove('protected', 'experimental', 'warning');
+      if (['protected', 'experimental', 'warning'].includes(res.status.level)) btn.classList.add(res.status.level);
       btn.title = res.status.label;
       btn.setAttribute('aria-pressed', String(on));
       btn.setAttribute('aria-label', `Private mode: ${res.status.label}`);
@@ -69,7 +74,7 @@
     run({ type: 'getStatus' });
     // Follow changes made from the popup or by the guard.
     browser.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && (changes.aCheck || changes.bEnabled || changes.tripped)) run({ type: 'getStatus' });
+      if (area === 'local' && (changes.aCheck || changes.bEnabled || changes.tripped || changes.bConfirmedAt)) run({ type: 'getStatus' });
     });
     return li;
   }

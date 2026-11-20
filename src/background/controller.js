@@ -142,6 +142,8 @@ export function createController({ storage, cookies, action, fetchFn, now = Date
     async onBlocked(info) {
       if (!bConfirmed) {
         bConfirmed = true;
+        // Signal only (lets the nav toggle re-render); confirmation itself stays in memory.
+        await storage.set({ bConfirmedAt: now() });
         await snapshot();
       }
       guard.blocked(info.tabId, now());
